@@ -1,136 +1,139 @@
 # Trade Risk Planner
 
-A local-first, dependency-free trade planning calculator focused on **risk, stop loss, position size and reward**.
+A universal, local-first trade planning tool.
 
-## The key idea
+## Current product: Spot Simple
 
-The calculator supports three different questions because they are mathematically different:
+The first version focuses on the cleanest possible spot-trading workflow:
 
-### 1. I know my target — find my stop
+1. Enter the capital you have set aside for trading.
+2. Drag **Capital Allocation %** to choose how much of that capital goes into this position.
+3. Drag **Account Risk %** to choose the maximum modeled account loss for the trade.
+4. Enter the asset's planned entry price.
+5. The app calculates:
+   - position value;
+   - quantity / units;
+   - stop-loss price;
+   - stop distance;
+   - modeled loss;
+   - 1R–3R+ targets;
+   - modeled profit;
+   - account balance after stop/target;
+   - losing-streak drawdown examples.
 
-Inputs:
+There is no BTC-specific, stock-specific, or token-specific math in Spot Simple. Any positive unit price works.
 
-- trading capital
-- account risk level
-- long / short
-- entry
-- target
-- desired R:R
+## Why there are two sliders
 
-The target and desired R:R determine the stop geometry.
+**Capital Allocation %** and **Account Risk %** are not the same thing.
 
-For a cost-free long trade:
-
-```text
-reward_distance = target - entry
-risk_distance   = reward_distance / desired_R
-stop            = entry - risk_distance
-```
-
-Then account capital and account risk determine the position size.
-
-This distinction matters:
-
-> **Target + R:R determine the stop. Capital + risk determine the size.**
-
-### 2. I know my stop — find my position size
-
-This is the standard risk-first workflow:
+Example:
 
 ```text
-risk_budget = capital × risk_percent
-position_size = risk_budget / effective_stop_distance
+Trading capital: $100
+Capital allocation: 50%
+Position value: $50
+
+Account risk: 0.50%
+Maximum modeled loss: $0.50
 ```
 
-### 3. I know how much I want to use — find my maximum stop
-
-If position size is fixed:
+Therefore the position can move approximately:
 
 ```text
-effective_stop_distance = risk_budget / position_size
+$0.50 / $50 = 1%
 ```
 
-The app can solve the corresponding stop price. This is explicitly labeled a **budget stop**, not a technical recommendation.
+against the entry before reaching the modeled loss budget.
 
-## Why the distinction matters
+At a $100 entry:
 
-A mathematically valid stop is not automatically a good chart stop.
+```text
+Stop loss ≈ $99
+```
 
-Support/resistance, market structure and volatility can imply a different invalidation level. If the technically valid stop is farther away, reduce the position size rather than tightening the stop only to fit the risk budget.
+This is the mathematical relationship the Spot Simple UI is built around.
 
-## Risk levels
+## Important: budget stop vs technical stop
 
-These labels are educational conventions inside the app:
+The calculated stop is a **budget stop**: the maximum price distance compatible with your chosen allocation and account-risk budget.
 
-| Label | Risk |
-|---|---:|
-| Bajo | 0.25% |
-| Bajo-Medio | 0.50% |
-| Medio-Bajo | 0.75% |
-| Medio | 1.00% |
-| Medio-Alto | 1.50% |
-| Alto | 2.00% |
+It does not know support/resistance, ATR, volatility, liquidity, market structure, or your trade thesis.
 
-The exact percentage and dollar risk are always visible.
+If a technically valid stop needs to be wider, reduce allocation instead of forcing the stop tighter.
+
+## Universal asset model
+
+Spot Simple uses only:
+
+```text
+capital
+allocation %
+risk %
+entry price
+estimated transaction friction
+reward/risk multiple
+```
+
+Quantity is:
+
+```text
+position value / entry price
+```
+
+This makes the model usable for any divisible spot asset quoted in the account currency.
+
+## Future trade modes
+
+The architecture intentionally reserves separate modes for:
+
+- Margin
+- Futures / Perpetuals
+- Options
+
+Those should not reuse the spot formulas blindly.
+
+Future leverage-aware modes will need, depending on instrument:
+
+- leverage;
+- margin used;
+- notional exposure;
+- maintenance margin;
+- liquidation approximation;
+- contract / point / tick value;
+- lot or quantity precision;
+- funding / borrow costs;
+- isolated vs cross margin;
+- exchange/broker constraints.
 
 ## Run locally
 
-No package installation is required.
+No external dependencies:
 
 ```bash
 python3 app.py
 ```
 
-Then open:
+Open:
 
 ```text
 http://127.0.0.1:8501
 ```
 
-## Tests
+## Test
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-## Repository structure
+## Design principle
 
-```text
-trade-risk-planner/
-├── app.py
-├── trade_risk/
-│   ├── __init__.py
-│   └── engine.py
-├── web/
-│   ├── index.html
-│   └── app.js
-├── tests/
-│   ├── test_engine.py
-│   └── test_server.py
-└── .github/workflows/tests.yml
-```
+The tool should answer:
 
-## Research-informed design
+> “Given how much capital I have, how much I want to deploy, how much I can afford to lose, and my entry price — where is my maximum risk stop and what is the upside/downside?”
 
-The project deliberately follows these principles:
-
-- risk budget and stop distance determine position size;
-- capital availability caps the position in a 1x/spot model;
-- execution friction can be modeled;
-- stop geometry, position sizing and trade target should be shown together;
-- a risk-derived stop is not the same thing as a technically justified stop;
-- the app should explain the result in plain language rather than only display formulas.
-
-## Scope
-
-This tool does not:
-
-- predict whether a trade will win;
-- recommend a market direction;
-- connect to an exchange;
-- place orders;
-- assume leverage.
+It does not predict whether the trade is good.
 
 ## Disclaimer
 
-Educational planning software only. Stop orders do not guarantee a specific exit price; gaps, spread, slippage and liquidity can make realized loss larger than modeled.
+Educational planning software only. Actual fills can differ because of spread, fees, slippage, gaps and liquidity. A stop order does not guarantee the modeled exit price.
