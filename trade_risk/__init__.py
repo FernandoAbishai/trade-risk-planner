@@ -1,1 +1,1 @@
-"""Trade Risk Planner calculation engine."""
+"""Trade Risk Planner engine."""
