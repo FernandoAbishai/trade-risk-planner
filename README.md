@@ -1,114 +1,120 @@
 # Trade Risk Planner
 
-A universal, local-first trade planning tool.
+A universal, local-first **spot risk planner** that explains the relationship between trading capital, capital allocation, account risk, entry price, stop-loss distance, quantity, reward/risk, and modeled P/L.
 
-## Current product: Spot Simple
+The project intentionally starts with **Spot Simple** before adding leverage-aware trade types.
 
-The first version focuses on the cleanest possible spot-trading workflow:
+## Core workflow
 
-1. Enter the capital you have set aside for trading.
-2. Drag **Capital Allocation %** to choose how much of that capital goes into this position.
-3. Drag **Account Risk %** to choose the maximum modeled account loss for the trade.
-4. Enter the asset's planned entry price.
-5. The app calculates:
-   - position value;
-   - quantity / units;
-   - stop-loss price;
-   - stop distance;
-   - modeled loss;
-   - 1R–3R+ targets;
-   - modeled profit;
-   - account balance after stop/target;
-   - losing-streak drawdown examples.
+The default experience asks for four decisions:
 
-There is no BTC-specific, stock-specific, or token-specific math in Spot Simple. Any positive unit price works.
+1. **Trading capital** — the money set aside for trading.
+2. **Capital Allocation %** — how much of that capital will be deployed in this position.
+3. **Account Risk %** — the maximum modeled loss allowed for the trade.
+4. **Entry price** — any positive unit price.
 
-## Why there are two sliders
-
-**Capital Allocation %** and **Account Risk %** are not the same thing.
-
-Example:
+Because allocation fixes the spot position value, the risk budget can solve the maximum budget stop.
 
 ```text
-Trading capital: $100
-Capital allocation: 50%
-Position value: $50
+position_value = capital × allocation_percent
+risk_budget = capital × risk_percent
 
-Account risk: 0.50%
-Maximum modeled loss: $0.50
+effective_loss_rate = risk_budget / position_value
+price_stop_rate = effective_loss_rate - estimated_cost_rate
+
+stop_price = entry × (1 - price_stop_rate)
 ```
 
-Therefore the position can move approximately:
+If the allocation is so small that even a total price loss would stay below the risk budget, the planner caps the stop at zero and explains that the selected risk budget is not fully used.
+
+## Chart-stop mode
+
+A secondary workflow supports the more traditional risk-management sequence:
+
+> **I already know my chart stop.**
+
+In this mode, the user enters capital, account risk, entry, and technical/invalidation stop. The planner solves the maximum 1x spot position that fits the risk budget:
 
 ```text
-$0.50 / $50 = 1%
+effective_stop_rate =
+    abs(entry - stop) / entry
+    + estimated_cost_rate
+
+position_value =
+    risk_budget / effective_stop_rate
 ```
 
-against the entry before reaching the modeled loss budget.
+The position is capped at 100% of the account because Spot Simple never assumes leverage.
 
-At a $100 entry:
+This keeps two concepts separate:
 
-```text
-Stop loss ≈ $99
-```
-
-This is the mathematical relationship the Spot Simple UI is built around.
-
-## Important: budget stop vs technical stop
-
-The calculated stop is a **budget stop**: the maximum price distance compatible with your chosen allocation and account-risk budget.
-
-It does not know support/resistance, ATR, volatility, liquidity, market structure, or your trade thesis.
-
-If a technically valid stop needs to be wider, reduce allocation instead of forcing the stop tighter.
+- **Budget stop**: derived from allocation + account risk.
+- **Chart stop**: supplied from technical invalidation; allocation is solved from it.
 
 ## Universal asset model
 
-Spot Simple uses only:
+There is no BTC-specific or stock-specific formula. Spot Simple needs only a unit price, a cash position value, and quantity precision. The optional asset symbol is display text only.
+
+This makes the same model usable for divisible spot assets such as shares, ETFs, coins, tokens, or similar instruments, subject to actual broker/exchange rules.
+
+## Quantity precision
+
+The planner supports configurable quantity precision from whole units through 12 decimals. Quantity is rounded **down** so rounding does not make the position larger than planned. After rounding, the risk math is recalculated from the actual position value.
+
+## Reward / risk
+
+The selected `R` multiple produces target price, target move %, modeled net profit, mathematical break-even win rate, and account balance after target.
+
+A reward ladder shows 1R, 1.5R, 2R, 2.5R, 3R, and 4R.
+
+## Visual explanations
+
+The UI includes:
+
+- capital-deployed bar;
+- account-risk bar;
+- Stop → Entry → Target price rail;
+- modeled loss vs modeled reward cards;
+- reward ladder;
+- risk-level explanation;
+- loss-streak perspective;
+- warnings when transaction friction consumes a large part of the risk budget.
+
+## Execution-cost model
+
+An optional advanced input estimates total round-trip friction:
 
 ```text
-capital
-allocation %
-risk %
-entry price
-estimated transaction friction
-reward/risk multiple
+fees + spread + slippage
 ```
 
-Quantity is:
+The value is modeled as a percentage of position notional. It is intentionally an estimate; actual fees and fills depend on venue, order type, liquidity, and market conditions.
 
-```text
-position value / entry price
-```
+## Why these inputs
 
-This makes the model usable for any divisible spot asset quoted in the account currency.
+The design is influenced by established position-sizing interfaces:
 
-## Future trade modes
+- TradingView separates quantity as units, cash, or % of balance from risk as cash or % of balance.
+- TradingView allows risk to solve either quantity or stop-loss, but not both simultaneously.
+- TradingView's position tools expose account size, risk, entry, stop, target, quantity precision, leverage, P/L and R:R.
+- EarnForex PositionSizer centers sizing around account size, stop distance and account risk.
 
-The architecture intentionally reserves separate modes for:
+References:
 
-- Margin
-- Futures / Perpetuals
-- Options
+- https://www.tradingview.com/support/solutions/43000784804-what-is-an-order-ticket/
+- https://www.tradingview.com/support/solutions/43000480940-i-d-like-to-set-my-take-profit-and-stop-loss-in-dollar-terms-and-as-a-percentage-of-my-account-balance/
+- https://www.tradingview.com/support/solutions/43000475660-how-to-use-long-and-short-position-drawing-tools/
+- https://github.com/EarnForex/PositionSizer
 
-Those should not reuse the spot formulas blindly.
+## Future trade types
 
-Future leverage-aware modes will need, depending on instrument:
+The UI reserves separate modes for Margin, Futures / Perpetuals, and Options. They are intentionally disabled.
 
-- leverage;
-- margin used;
-- notional exposure;
-- maintenance margin;
-- liquidation approximation;
-- contract / point / tick value;
-- lot or quantity precision;
-- funding / borrow costs;
-- isolated vs cross margin;
-- exchange/broker constraints.
+Leverage-aware modes should not reuse spot formulas blindly. Future work can add leverage, margin used, notional exposure, liquidation estimate, isolated vs cross, maintenance margin, contract/point/tick value, funding or borrow costs, and venue-specific quantity/tick rules.
 
 ## Run locally
 
-No external dependencies:
+No external dependencies are required.
 
 ```bash
 python3 app.py
@@ -120,20 +126,12 @@ Open:
 http://127.0.0.1:8501
 ```
 
-## Test
+## Tests
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-## Design principle
-
-The tool should answer:
-
-> “Given how much capital I have, how much I want to deploy, how much I can afford to lose, and my entry price — where is my maximum risk stop and what is the upside/downside?”
-
-It does not predict whether the trade is good.
-
 ## Disclaimer
 
-Educational planning software only. Actual fills can differ because of spread, fees, slippage, gaps and liquidity. A stop order does not guarantee the modeled exit price.
+Educational planning software only. A calculated budget stop is not a technical trading signal. Stop orders can fill worse than the modeled level because of gaps, spread, slippage, liquidity, or venue behavior. The tool does not predict direction or probability of success.
